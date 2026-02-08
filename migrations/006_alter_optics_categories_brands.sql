@@ -1,0 +1,15 @@
+ALTER TABLE optics ADD COLUMN category_id INT NULL AFTER style;
+ALTER TABLE optics ADD COLUMN brand_id INT NULL AFTER category_id;
+INSERT IGNORE INTO brands (name) SELECT DISTINCT brand FROM optics WHERE brand IS NOT NULL AND brand != '';
+UPDATE optics o SET o.brand_id = (SELECT id FROM brands b WHERE b.name = o.brand LIMIT 1) WHERE o.brand IS NOT NULL;
+UPDATE optics SET category_id = 2 WHERE category = 'eyeglasses' AND category_id IS NULL;
+UPDATE optics SET category_id = 1 WHERE category = 'sunglasses' AND category_id IS NULL;
+UPDATE optics SET category_id = 3 WHERE category = 'lenses' AND category_id IS NULL;
+UPDATE optics SET category_id = 2 WHERE category_id IS NULL;
+UPDATE optics SET brand_id = (SELECT id FROM brands LIMIT 1) WHERE brand_id IS NULL AND (SELECT COUNT(*) FROM brands) > 0;
+ALTER TABLE optics DROP COLUMN category;
+ALTER TABLE optics DROP COLUMN brand;
+ALTER TABLE optics MODIFY category_id INT NOT NULL;
+ALTER TABLE optics MODIFY brand_id INT NOT NULL;
+ALTER TABLE optics ADD CONSTRAINT fk_optics_category FOREIGN KEY (category_id) REFERENCES categories(id);
+ALTER TABLE optics ADD CONSTRAINT fk_optics_brand FOREIGN KEY (brand_id) REFERENCES brands(id);
