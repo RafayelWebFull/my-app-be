@@ -4,6 +4,7 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var session = require('express-session');
+var cors = require('cors');
 
 // Database connection
 require('dotenv').config();
@@ -26,6 +27,15 @@ var homeCategoryCardsRouter = require('./routes/homeCategoryCards');
 
 var app = express();
 
+// CORS for frontend on opticgallery.am
+var frontendOrigin = process.env.FRONTEND_ORIGIN || 'https://opticgallery.am';
+app.use(cors({
+  origin: frontendOrigin,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
@@ -38,21 +48,17 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'optice-gallery-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: process.env.FRONTEND_ORIGIN ? 'none' : 'lax',
+    domain: process.env.FRONTEND_ORIGIN ? '.opticgallery.am' : undefined
+  }
 }));
 
-// Serve static files from both public and frontend build directories
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Serve built frontend files if they exist
-try {
-  const frontendDistPath = path.join(__dirname, '..', 'my-app-fe', 'dist');
-  if (require('fs').existsSync(frontendDistPath)) {
-    app.use(express.static(frontendDistPath));
-  }
-} catch (err) {
-  console.log('Frontend build directory not found, skipping static serving');
-}
+// Serve static uploads (API-only deployment)
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // Make database connection available to routes
 // Make database connection available to routes
@@ -114,23 +120,6 @@ app.use('/api/orders', ordersRouter);
 app.use('/api/home-category-cards', homeCategoryCardsRouter);
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
-
-// Serve frontend files for all non-API routes
-app.get(/^(?!\/api).*$/, (req, res, next) => {
-  try {
-    const frontendDistPath = path.join(__dirname, '..', 'my-app-fe', 'dist', 'index.html');
-    const fs = require('fs');
-    
-    if (fs.existsSync(frontendDistPath)) {
-      res.sendFile(frontendDistPath);
-    } else {
-      // If frontend build doesn't exist, continue with normal routing
-      next(createError(404));
-    }
-  } catch (err) {
-    next(createError(404));
-  }
-});
 
 // catch 404 and forward to error handler for API routes
 app.use(function(req, res, next) {
