@@ -27,6 +27,9 @@ var homeCategoryCardsRouter = require('./routes/homeCategoryCards');
 
 var app = express();
 
+// Trust the first proxy (needed for secure cookies behind cPanel/NGINX)
+app.set('trust proxy', 1);
+
 // CORS for frontend (opticgallery.am + localhost for dev)
 var allowedOrigins = [
   'https://opticgallery.am',
@@ -64,11 +67,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(session({
+  proxy: true,
   secret: process.env.SESSION_SECRET || 'optice-gallery-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: 'auto',
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
     sameSite: process.env.FRONTEND_ORIGIN ? 'none' : 'lax',
