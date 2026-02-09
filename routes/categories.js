@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 var { requireAdmin } = require('../middleware/auth');
+var { errorPayload } = require('../utils/error');
 
 router.get('/', async function (req, res) {
   try {
@@ -8,7 +9,7 @@ router.get('/', async function (req, res) {
     res.json(rows);
   } catch (err) {
     console.error('Error fetching categories:', err);
-    res.status(500).json({ error: 'Failed to fetch categories' });
+    res.status(500).json(errorPayload(err, 'Failed to fetch categories'));
   }
 });
 
@@ -26,7 +27,7 @@ router.post('/', requireAdmin, async function (req, res) {
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('Error creating category:', err);
-    res.status(500).json({ error: 'Failed to create category' });
+    res.status(500).json(errorPayload(err, 'Failed to create category'));
   }
 });
 
@@ -47,7 +48,7 @@ router.put('/:id', requireAdmin, async function (req, res) {
     res.json(rows[0]);
   } catch (err) {
     console.error('Error updating category:', err);
-    res.status(500).json({ error: 'Failed to update category' });
+    res.status(500).json(errorPayload(err, 'Failed to update category'));
   }
 });
 
@@ -60,7 +61,7 @@ router.delete('/:id', requireAdmin, async function (req, res) {
     res.status(204).send();
   } catch (err) {
     console.error('Error deleting category:', err);
-    res.status(500).json({ error: 'Failed to delete category' });
+    res.status(500).json(errorPayload(err, 'Failed to delete category'));
   }
 });
 

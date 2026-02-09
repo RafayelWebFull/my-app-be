@@ -4,6 +4,7 @@ var multer = require('multer');
 var path = require('path');
 var fs = require('fs');
 var { requireAdmin } = require('../middleware/auth');
+var { errorPayload } = require('../utils/error');
 
 var uploadDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -26,7 +27,7 @@ router.get('/', async function (req, res) {
     res.json(rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to fetch banners' });
+    res.status(500).json(errorPayload(err, 'Failed to fetch banners'));
   }
 });
 
@@ -37,7 +38,7 @@ router.get('/all', requireAdmin, async function (req, res) {
     res.json(rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to fetch banners' });
+    res.status(500).json(errorPayload(err, 'Failed to fetch banners'));
   }
 });
 
@@ -57,7 +58,7 @@ router.post('/', requireAdmin, upload.single('image'), async function (req, res)
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to create banner' });
+    res.status(500).json(errorPayload(err, 'Failed to create banner'));
   }
 });
 
@@ -79,7 +80,7 @@ router.put('/:id', requireAdmin, upload.single('image'), async function (req, re
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to update banner' });
+    res.status(500).json(errorPayload(err, 'Failed to update banner'));
   }
 });
 
@@ -90,7 +91,7 @@ router.delete('/:id', requireAdmin, async function (req, res) {
     res.status(204).send();
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to delete banner' });
+    res.status(500).json(errorPayload(err, 'Failed to delete banner'));
   }
 });
 

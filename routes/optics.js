@@ -4,6 +4,7 @@ var multer = require('multer');
 var path = require('path');
 var fs = require('fs');
 var { requireAdmin } = require('../middleware/auth');
+var { errorPayload } = require('../utils/error');
 
 var uploadDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -66,7 +67,7 @@ router.get('/', async function (req, res, next) {
     res.json(rows);
   } catch (err) {
     console.error('Error fetching optics:', err);
-    res.status(500).json({ error: 'Failed to fetch optics' });
+    res.status(500).json(errorPayload(err, 'Failed to fetch optics'));
   }
 });
 
@@ -79,7 +80,7 @@ router.get('/:id', async function (req, res, next) {
     res.json(rows[0]);
   } catch (err) {
     console.error('Error fetching optic:', err);
-    res.status(500).json({ error: 'Failed to fetch optic' });
+    res.status(500).json(errorPayload(err, 'Failed to fetch optic'));
   }
 });
 
@@ -104,7 +105,7 @@ router.post('/', requireAdmin, upload.single('image'), async function (req, res,
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('Error creating optic:', err);
-    res.status(500).json({ error: 'Failed to create optic' });
+    res.status(500).json(errorPayload(err, 'Failed to create optic'));
   }
 });
 
@@ -131,7 +132,7 @@ router.put('/:id', requireAdmin, upload.single('image'), async function (req, re
     res.json(rows[0]);
   } catch (err) {
     console.error('Error updating optic:', err);
-    res.status(500).json({ error: 'Failed to update optic' });
+    res.status(500).json(errorPayload(err, 'Failed to update optic'));
   }
 });
 
@@ -144,7 +145,7 @@ router.delete('/:id', requireAdmin, async function (req, res, next) {
     res.status(204).send();
   } catch (err) {
     console.error('Error deleting optic:', err);
-    res.status(500).json({ error: 'Failed to delete optic' });
+    res.status(500).json(errorPayload(err, 'Failed to delete optic'));
   }
 });
 

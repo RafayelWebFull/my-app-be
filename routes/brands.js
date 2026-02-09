@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 var { requireAdmin } = require('../middleware/auth');
+var { errorPayload } = require('../utils/error');
 
 router.get('/', async function (req, res) {
   try {
@@ -8,7 +9,7 @@ router.get('/', async function (req, res) {
     res.json(rows);
   } catch (err) {
     console.error('Error fetching brands:', err);
-    res.status(500).json({ error: 'Failed to fetch brands' });
+    res.status(500).json(errorPayload(err, 'Failed to fetch brands'));
   }
 });
 
@@ -26,7 +27,7 @@ router.post('/', requireAdmin, async function (req, res) {
       return res.status(400).json({ error: 'Brand already exists' });
     }
     console.error('Error creating brand:', err);
-    res.status(500).json({ error: 'Failed to create brand' });
+    res.status(500).json(errorPayload(err, 'Failed to create brand'));
   }
 });
 
@@ -50,7 +51,7 @@ router.put('/:id', requireAdmin, async function (req, res) {
       return res.status(400).json({ error: 'Brand already exists' });
     }
     console.error('Error updating brand:', err);
-    res.status(500).json({ error: 'Failed to update brand' });
+    res.status(500).json(errorPayload(err, 'Failed to update brand'));
   }
 });
 
@@ -63,7 +64,7 @@ router.delete('/:id', requireAdmin, async function (req, res) {
     res.status(204).send();
   } catch (err) {
     console.error('Error deleting brand:', err);
-    res.status(500).json({ error: 'Failed to delete brand' });
+    res.status(500).json(errorPayload(err, 'Failed to delete brand'));
   }
 });
 
