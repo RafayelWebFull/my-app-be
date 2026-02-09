@@ -27,13 +27,32 @@ var homeCategoryCardsRouter = require('./routes/homeCategoryCards');
 
 var app = express();
 
-// CORS for frontend on opticgallery.am
-var frontendOrigin = process.env.FRONTEND_ORIGIN || 'https://opticgallery.am';
+// CORS for frontend (opticgallery.am + localhost for dev)
+var allowedOrigins = [
+  'https://opticgallery.am',
+  'https://www.opticgallery.am',
+  'http://opticgallery.am',
+  'http://www.opticgallery.am',
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'http://127.0.0.1:8080',
+  'http://127.0.0.1:5173'
+];
+if (process.env.FRONTEND_ORIGIN) {
+  var extra = process.env.FRONTEND_ORIGIN.split(',').map(function (s) { return s.trim(); });
+  allowedOrigins = allowedOrigins.concat(extra);
+}
 app.use(cors({
-  origin: frontendOrigin,
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    if (/^https?:\/\/([a-z0-9-]+\.)?opticgallery\.am$/i.test(origin)) return callback(null, true);
+    callback(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'Content-Type']
 }));
 
 // view engine setup
