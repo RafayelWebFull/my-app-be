@@ -6,6 +6,10 @@ async function runMigrations() {
   console.log('Starting database migrations...');
   
   try {
+    // Set connection charset for UTF-8 (Russian, Armenian, etc.)
+    await db.execute("SET NAMES 'utf8mb4'");
+    await db.execute("SET CHARACTER SET utf8mb4");
+    
     // Read all migration files from the migrations directory
     const migrationsDir = path.join(__dirname, '..', 'migrations');
     const migrationFiles = fs.readdirSync(migrationsDir)
