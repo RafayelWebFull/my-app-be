@@ -45,18 +45,38 @@ if (process.env.FRONTEND_ORIGIN) {
   var extra = process.env.FRONTEND_ORIGIN.split(',').map(function (s) { return s.trim(); });
   allowedOrigins = allowedOrigins.concat(extra);
 }
-app.use(cors({
+function normalizeOrigin(origin) {
+  if (!origin) return '';
+  return origin.trim().replace(/\/$/, '').toLowerCase();
+}
+
+var allowedOriginsNormalized = allowedOrigins
+  .map(function (o) { return normalizeOrigin(o); })
+  .filter(Boolean);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  var normalized = normalizeOrigin(origin);
+  if (allowedOriginsNormalized.indexOf(normalized) !== -1) return true;
+  if (/^https?:\/\/([a-z0-9-]+\.)?opticgallery\.am(?::\d+)?$/i.test(normalized)) return true;
+  return false;
+}
+
+var corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-    if (/^https?:\/\/([a-z0-9-]+\.)?opticgallery\.am$/i.test(origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    console.warn('CORS blocked origin:', origin);
     callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-  exposedHeaders: ['Content-Length', 'Content-Type']
-}));
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -151,13 +171,12 @@ app.use(function(req, res, next) {
 
 // error handler
 app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+  console.error(err); // important: shows in cPanel logs
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
+  res.status(err.status || 500).json({
+    error: true,
+    message: err.message || "Internal Server Error"
+  });
 });
 
 module.exports = app;
