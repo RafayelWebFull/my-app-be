@@ -4,6 +4,7 @@ var multer = require('multer');
 var path = require('path');
 var fs = require('fs');
 var { requireAdmin } = require('../middleware/auth');
+var languageService = require('../services/languageService');
 
 var uploadDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -21,9 +22,18 @@ var upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 router.get('/', async function (req, res) {
   try {
     const [rows] = await req.db.execute(
-      'SELECT id, title, slug, background, image_url, icon, sort_order FROM home_category_cards ORDER BY sort_order ASC, id ASC'
+      'SELECT id, title, title_key, slug, background, image_url, icon, sort_order FROM home_category_cards ORDER BY sort_order ASC, id ASC'
     );
-    res.json(rows);
+    const lang = (req.query.lang || req.language || 'en').toString().toLowerCase();
+    const localized = await Promise.all(rows.map(async (row) => {
+      let localizedTitle = row.title;
+      if (row.title_key) {
+        const t = await languageService.getTranslation(row.title_key, lang);
+        localizedTitle = t || row.title;
+      }
+      return { ...row, title: localizedTitle };
+    }));
+    res.json(localized);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch home category cards' });
@@ -45,17 +55,18 @@ router.get('/all', requireAdmin, async function (req, res) {
 
 router.post('/', requireAdmin, upload.single('image'), async function (req, res) {
   try {
-    const { title, slug, background, icon, sort_order } = req.body;
+    const { title, title_key, slug, background, icon, sort_order } = req.body;
     if (!title || !slug) {
       return res.status(400).json({ error: 'title and slug required' });
     }
+    const tKey = title_key && title_key.trim() ? title_key.trim() : null;
     const imageUrl = req.file ? '/uploads/' + req.file.filename : null;
     const bg = background || null;
     const ic = icon || 'glasses';
     const order = sort_order != null ? parseInt(sort_order, 10) : 0;
     const [result] = await req.db.execute(
-      'INSERT INTO home_category_cards (title, slug, background, image_url, icon, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, slug, bg, imageUrl, ic, order]
+      'INSERT INTO home_category_cards (title, title_key, slug, background, image_url, icon, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [title, tKey, slug, bg, imageUrl, ic, order]
     );
     const [rows] = await req.db.execute('SELECT * FROM home_category_cards WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
@@ -67,18 +78,19 @@ router.post('/', requireAdmin, upload.single('image'), async function (req, res)
 
 router.put('/:id', requireAdmin, upload.single('image'), async function (req, res) {
   try {
-    const { title, slug, background, icon, sort_order, image_url } = req.body;
+    const { title, title_key, slug, background, icon, sort_order, image_url } = req.body;
     if (!title || !slug) {
       return res.status(400).json({ error: 'title and slug required' });
     }
+    const tKey = title_key && title_key.trim() ? title_key.trim() : null;
     let imageUrl = image_url || null;
     if (req.file) imageUrl = '/uploads/' + req.file.filename;
     const bg = background || null;
     const ic = icon || 'glasses';
     const order = sort_order != null ? parseInt(sort_order, 10) : 0;
     const [result] = await req.db.execute(
-      'UPDATE home_category_cards SET title = ?, slug = ?, background = ?, image_url = COALESCE(?, image_url), icon = ?, sort_order = ? WHERE id = ?',
-      [title, slug, bg, imageUrl, ic, order, req.params.id]
+      'UPDATE home_category_cards SET title = ?, title_key = ?, slug = ?, background = ?, image_url = COALESCE(?, image_url), icon = ?, sort_order = ? WHERE id = ?',
+      [title, tKey, slug, bg, imageUrl, ic, order, req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
     const [rows] = await req.db.execute('SELECT * FROM home_category_cards WHERE id = ?', [req.params.id]);
