@@ -16,6 +16,7 @@ npm-debug.log*
 # build output
 build/
 dist/
+public/
 
 # OS files
 .DS_Store
