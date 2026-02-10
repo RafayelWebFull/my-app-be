@@ -7,7 +7,8 @@
     "dev": "nodemon ./bin/www",
     "migrate": "node ./scripts/run-migrations.js",
     "seed": "node ./scripts/seed-fake-data.js",
-    "seed:translations": "node ./scripts/seed-translations.js"
+    "seed:translations": "node ./scripts/seed-translations.js",
+    "seed:frontend-translations": "node ./scripts/seed-frontend-translations.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
