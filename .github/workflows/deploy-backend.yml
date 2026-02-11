@@ -1,0 +1,59 @@
+name: Deploy Backend to cPanel (Node App)
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 1) Upload backend source code to your app root directory
+      - name: Upload backend to cPanel
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USER }}
+          password: ${{ secrets.CPANEL_PASS }}
+          protocol: ftps
+          port: 21
+
+          local-dir: ./
+          server-dir: respositories/my-app-be/
+
+          # safer for backend (don't delete logs/uploads/tmp)
+          dangerous-clean-slate: false
+
+          # don't upload junk
+          exclude: |
+            **/.git*
+            **/.github/**
+            **/node_modules/**
+            **/.env
+            **/.DS_Store
+            **/npm-debug.log*
+            **/yarn.lock
+
+      # 2) Install deps + restart (same as cPanel restart button)
+      - name: Install deps + restart (SSH)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # activate the cPanel Node app environment (adjust if your path differs)
+            source /home2/rafayeldev/nodevenv/respositories/my-app-be/20/bin/activate
+
+            cd /home2/rafayeldev/respositories/my-app-be
+
+            # install only production deps
+            npm ci --omit=dev
+
+            # restart passenger/cpanel node app
+            mkdir -p tmp
+            touch tmp/restart.txt
