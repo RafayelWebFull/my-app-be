@@ -30,13 +30,15 @@ jobs:
 
           # don't upload junk
           exclude: |
-            **/.git*
+            **/.git/**
             **/.github/**
             **/node_modules/**
             **/.env
             **/.DS_Store
             **/npm-debug.log*
             **/yarn.lock
+            **/tmp/**
+            **/public/uploads/**
 
       # 2) Install deps + restart (same as cPanel restart button)
       - name: Install deps + restart (SSH)
