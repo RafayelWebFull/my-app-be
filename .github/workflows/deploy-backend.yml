@@ -23,7 +23,7 @@ jobs:
           port: 21
 
           local-dir: ./
-          server-dir: respositories/my-app-be/
+          server-dir: repositories/my-app-be/
 
           # safer for backend (don't delete logs/uploads/tmp)
           dangerous-clean-slate: false
@@ -49,9 +49,9 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             # activate the cPanel Node app environment (adjust if your path differs)
-            source /home2/rafayeldev/nodevenv/respositories/my-app-be/20/bin/activate
+            source /home2/rafayeldev/nodevenv/repositories/my-app-be/20/bin/activate
 
-            cd /home2/rafayeldev/respositories/my-app-be
+            cd /home2/rafayeldev/repositories/my-app-be
 
             # install only production deps
             npm ci --omit=dev
