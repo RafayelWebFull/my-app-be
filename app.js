@@ -30,20 +30,20 @@ var app = express();
 // Trust the first proxy (needed for secure cookies behind cPanel/NGINX)
 app.set('trust proxy', 1);
 
-// CORS for frontend (opticgallery.am + localhost for dev)
+// CORS for frontend (domain list + localhost for dev)
 var allowedOrigins = [
   'https://opticgallery.am',
   'https://www.opticgallery.am',
   'http://opticgallery.am',
   'http://www.opticgallery.am',
-  'http://localhost:8080',
-  'http://localhost:5173',
-  'http://127.0.0.1:8080',
-  'http://127.0.0.1:5173'
 ];
 if (process.env.FRONTEND_ORIGIN) {
-  var extra = process.env.FRONTEND_ORIGIN.split(',').map(function (s) { return s.trim(); });
-  allowedOrigins = allowedOrigins.concat(extra);
+  var frontendOrigins = process.env.FRONTEND_ORIGIN.split(',').map(function (s) { return s.trim(); });
+  allowedOrigins = allowedOrigins.concat(frontendOrigins);
+}
+if (process.env.CORS_ORIGINS) {
+  var corsOrigins = process.env.CORS_ORIGINS.split(',').map(function (s) { return s.trim(); });
+  allowedOrigins = allowedOrigins.concat(corsOrigins);
 }
 function normalizeOrigin(origin) {
   if (!origin) return '';
@@ -59,6 +59,7 @@ function isAllowedOrigin(origin) {
   var normalized = normalizeOrigin(origin);
   if (allowedOriginsNormalized.indexOf(normalized) !== -1) return true;
   if (/^https?:\/\/([a-z0-9-]+\.)?opticgallery\.am(?::\d+)?$/i.test(normalized)) return true;
+  if (/^https?:\/\/([a-z0-9-]+\.)?vercel\.app(?::\d+)?$/i.test(normalized)) return true;
   return false;
 }
 
@@ -86,6 +87,7 @@ app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+var hasConfiguredCrossOrigin = Boolean(process.env.FRONTEND_ORIGIN || process.env.CORS_ORIGINS);
 app.use(session({
   proxy: true,
   secret: process.env.SESSION_SECRET || 'optice-gallery-secret-change-in-production',
@@ -95,8 +97,8 @@ app.use(session({
     secure: 'auto',
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
-    sameSite: process.env.FRONTEND_ORIGIN ? 'none' : 'lax',
-    domain: process.env.FRONTEND_ORIGIN ? '.opticgallery.am' : undefined
+    sameSite: hasConfiguredCrossOrigin ? 'none' : 'lax',
+    domain: process.env.COOKIE_DOMAIN || undefined
   }
 }));
 
