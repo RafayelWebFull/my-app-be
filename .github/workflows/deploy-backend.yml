@@ -56,6 +56,12 @@ jobs:
             # install only production deps
             npm ci --omit=dev
 
+            # apply DB migrations required by new code
+            npm run migrate
+
+            # ensure runtime upload directories always exist
+            mkdir -p public/uploads
+
             # restart passenger/cpanel node app
             mkdir -p tmp
             touch tmp/restart.txt

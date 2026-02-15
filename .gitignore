@@ -16,7 +16,10 @@ npm-debug.log*
 # build output
 build/
 dist/
-public/
+
+# uploads (keep directory, ignore user files)
+public/uploads/*
+!public/uploads/.gitkeep
 
 # OS files
 .DS_Store

@@ -29,7 +29,9 @@ router.put('/:key/:lang', requireAdmin, async function (req, res) {
   try {
     const { key, lang } = req.params;
     const { value } = req.body;
-    if (!value) return res.status(400).json({ error: 'value required' });
+    if (typeof value !== 'string') {
+      return res.status(400).json({ error: 'value must be a string' });
+    }
     await languageService.setTranslation(key, lang, value);
     res.json({ ok: true });
   } catch (err) {

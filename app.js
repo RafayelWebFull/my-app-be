@@ -24,6 +24,7 @@ var adminTranslationsRouter = require('./routes/adminTranslations');
 var bannersRouter = require('./routes/banners');
 var ordersRouter = require('./routes/orders');
 var homeCategoryCardsRouter = require('./routes/homeCategoryCards');
+var exchangeRatesRouter = require('./routes/exchangeRates');
 
 var app = express();
 
@@ -88,15 +89,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 var hasConfiguredCrossOrigin = Boolean(process.env.FRONTEND_ORIGIN || process.env.CORS_ORIGINS);
+var sessionMaxAgeMs = Number(process.env.SESSION_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000);
 app.use(session({
   proxy: true,
   secret: process.env.SESSION_SECRET || 'optice-gallery-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
+  rolling: true,
   cookie: {
     secure: 'auto',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: sessionMaxAgeMs,
     sameSite: hasConfiguredCrossOrigin ? 'none' : 'lax',
     domain: process.env.COOKIE_DOMAIN || undefined
   }
@@ -163,6 +166,7 @@ app.use('/api/admin/translations', adminTranslationsRouter);
 app.use('/api/banners', bannersRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/home-category-cards', homeCategoryCardsRouter);
+app.use('/api/exchange-rates', exchangeRatesRouter);
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 

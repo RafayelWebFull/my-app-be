@@ -1,0 +1,57 @@
+-- Seed missing translation keys with empty values for all active languages.
+-- This allows manual editing from Admin -> Translations without changing code first.
+
+INSERT IGNORE INTO translations (key_name, language_id, translation)
+SELECT keys_to_add.key_name, langs.id, ''
+FROM (
+  SELECT 'filters' AS key_name
+  UNION ALL SELECT 'gender'
+  UNION ALL SELECT 'stock'
+  UNION ALL SELECT 'discount'
+  UNION ALL SELECT 'reset_filters'
+  UNION ALL SELECT 'in_stock_label'
+  UNION ALL SELECT 'out_of_stock_label'
+  UNION ALL SELECT 'product_not_found'
+  UNION ALL SELECT 'back_to_products'
+  UNION ALL SELECT 'no_image'
+  UNION ALL SELECT 'no_description_yet'
+  UNION ALL SELECT 'for_label'
+  UNION ALL SELECT 'previous_image'
+  UNION ALL SELECT 'next_image'
+  UNION ALL SELECT 'go_to_image'
+  UNION ALL SELECT 'female'
+  UNION ALL SELECT 'male'
+  UNION ALL SELECT 'unisex'
+  UNION ALL SELECT 'discounted'
+  UNION ALL SELECT 'no_discount'
+  UNION ALL SELECT 'active'
+  UNION ALL SELECT 'scheduled_ended'
+  UNION ALL SELECT 'add_brand'
+  UNION ALL SELECT 'add_category'
+  UNION ALL SELECT 'add_banner'
+  UNION ALL SELECT 'add_card'
+  UNION ALL SELECT 'add_product'
+  UNION ALL SELECT 'edit_brand'
+  UNION ALL SELECT 'edit_category'
+  UNION ALL SELECT 'edit_banner'
+  UNION ALL SELECT 'edit_card'
+  UNION ALL SELECT 'edit_product'
+  UNION ALL SELECT 'delete_brand'
+  UNION ALL SELECT 'delete_category'
+  UNION ALL SELECT 'delete_banner'
+  UNION ALL SELECT 'delete_card'
+  UNION ALL SELECT 'delete_product'
+  UNION ALL SELECT 'status'
+  UNION ALL SELECT 'dates'
+  UNION ALL SELECT 'order'
+  UNION ALL SELECT 'slug_link'
+  UNION ALL SELECT 'for_field'
+  UNION ALL SELECT 'images'
+  UNION ALL SELECT 'existing_images_kept'
+  UNION ALL SELECT 'new_images_selected'
+  UNION ALL SELECT 'delete_manually_if_needed'
+  UNION ALL SELECT 'all_languages_saved'
+) AS keys_to_add
+JOIN languages AS langs
+  ON langs.is_active = TRUE;
+

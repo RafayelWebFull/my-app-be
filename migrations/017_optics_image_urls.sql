@@ -1,0 +1,3 @@
+ALTER TABLE optics
+ADD COLUMN image_urls TEXT NULL;
+

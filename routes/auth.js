@@ -4,6 +4,7 @@ var bcrypt = require('bcryptjs');
 
 router.post('/login', async function (req, res) {
   try {
+    const sessionMaxAgeMs = Number(process.env.SESSION_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000);
     const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
@@ -25,6 +26,7 @@ router.post('/login', async function (req, res) {
       username: user.username,
       role: user.role,
     };
+    req.session.cookie.maxAge = sessionMaxAgeMs;
     res.json({ user: req.session.user });
   } catch (err) {
     console.error('Login error:', err);
