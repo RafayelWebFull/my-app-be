@@ -81,7 +81,8 @@ async function runMigrations() {
       for (const statement of statements) {
         if (statement.trim()) {
           try {
-            await db.execute(statement);
+            // Use text protocol for migrations so DDL and PREPARE statements are supported.
+            await db.query(statement);
           } catch (stmtErr) {
             // Allow idempotent bootstrap on existing databases.
             const ignoreErrors = [
