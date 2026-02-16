@@ -18,11 +18,11 @@ var storage = multer.diskStorage({
 });
 var upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Public: get banners that are active or upcoming (end_date >= today)
+// Public: get only currently active banners
 router.get('/', async function (req, res) {
   try {
     const [rows] = await req.db.execute(
-      'SELECT * FROM banners WHERE end_date >= CURDATE() ORDER BY start_date ASC'
+      'SELECT * FROM banners WHERE CURDATE() BETWEEN start_date AND end_date ORDER BY start_date ASC'
     );
     res.json(rows);
   } catch (err) {
@@ -44,15 +44,23 @@ router.get('/all', requireAdmin, async function (req, res) {
 
 router.post('/', requireAdmin, upload.single('image'), async function (req, res) {
   try {
-    const { title, description, start_date, end_date, discount_percent } = req.body;
+    const { title, description, start_date, end_date, discount_percent, target_type, target_id } = req.body;
     if (!title || !start_date || !end_date) {
       return res.status(400).json({ error: 'title, start_date, end_date required' });
+    }
+    const targetType = ['all', 'brand', 'optic'].includes(target_type) ? target_type : 'all';
+    let targetId = null;
+    if (targetType !== 'all') {
+      targetId = parseInt(target_id, 10);
+      if (!targetId || targetId < 1) {
+        return res.status(400).json({ error: 'target_id required for brand/optic targeting' });
+      }
     }
     const imageUrl = req.file ? '/uploads/' + req.file.filename : null;
     const discount = discount_percent != null && discount_percent !== '' ? Math.min(100, Math.max(0, parseInt(discount_percent, 10) || 0)) : 0;
     const [result] = await req.db.execute(
-      'INSERT INTO banners (image_url, title, description, start_date, end_date, discount_percent) VALUES (?, ?, ?, ?, ?, ?)',
-      [imageUrl, title, description || null, start_date, end_date, discount]
+      'INSERT INTO banners (image_url, title, description, start_date, end_date, discount_percent, target_type, target_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [imageUrl, title, description || null, start_date, end_date, discount, targetType, targetId]
     );
     const [rows] = await req.db.execute('SELECT * FROM banners WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
@@ -64,16 +72,24 @@ router.post('/', requireAdmin, upload.single('image'), async function (req, res)
 
 router.put('/:id', requireAdmin, upload.single('image'), async function (req, res) {
   try {
-    const { title, description, start_date, end_date, discount_percent, image_url } = req.body;
+    const { title, description, start_date, end_date, discount_percent, image_url, target_type, target_id } = req.body;
     if (!title || !start_date || !end_date) {
       return res.status(400).json({ error: 'title, start_date, end_date required' });
+    }
+    const targetType = ['all', 'brand', 'optic'].includes(target_type) ? target_type : 'all';
+    let targetId = null;
+    if (targetType !== 'all') {
+      targetId = parseInt(target_id, 10);
+      if (!targetId || targetId < 1) {
+        return res.status(400).json({ error: 'target_id required for brand/optic targeting' });
+      }
     }
     let imageUrl = image_url || null;
     if (req.file) imageUrl = '/uploads/' + req.file.filename;
     const discount = discount_percent != null && discount_percent !== '' ? Math.min(100, Math.max(0, parseInt(discount_percent, 10) || 0)) : 0;
     const [result] = await req.db.execute(
-      'UPDATE banners SET image_url = COALESCE(?, image_url), title = ?, description = ?, start_date = ?, end_date = ?, discount_percent = ? WHERE id = ?',
-      [imageUrl, title, description || null, start_date, end_date, discount, req.params.id]
+      'UPDATE banners SET image_url = COALESCE(?, image_url), title = ?, description = ?, start_date = ?, end_date = ?, discount_percent = ?, target_type = ?, target_id = ? WHERE id = ?',
+      [imageUrl, title, description || null, start_date, end_date, discount, targetType, targetId, req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Banner not found' });
     const [rows] = await req.db.execute('SELECT * FROM banners WHERE id = ?', [req.params.id]);

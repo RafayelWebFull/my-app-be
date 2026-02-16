@@ -71,14 +71,34 @@ function toOpticResponse(row) {
   if (!imageUrls.length && row.image_url) {
     imageUrls = [row.image_url];
   }
+  var ownDiscount = row.discount != null ? Number(row.discount) || 0 : 0;
+  var bannerDiscount = row.banner_discount != null ? Number(row.banner_discount) || 0 : 0;
+  var effectiveDiscount = Math.max(ownDiscount, bannerDiscount);
   return Object.assign({}, row, {
     image_urls: imageUrls,
     image_url: imageUrls[0] || null,
+    discount: effectiveDiscount > 0 ? effectiveDiscount : null,
+    own_discount: ownDiscount > 0 ? ownDiscount : null,
+    banner_discount: bannerDiscount > 0 ? bannerDiscount : null,
   });
 }
 
+function activeBannerDiscountExpr(opticAlias) {
+  var o = opticAlias || 'o';
+  return `(SELECT MAX(bn.discount_percent)
+    FROM banners bn
+    WHERE CURDATE() BETWEEN bn.start_date AND bn.end_date
+      AND (
+        bn.target_type = 'all'
+        OR (bn.target_type = 'brand' AND bn.target_id = ${o}.brand_id)
+        OR (bn.target_type = 'optic' AND bn.target_id = ${o}.id)
+      ))`;
+}
+
 function getOpticsQuery(where, params) {
+  var bannerDiscountExpr = activeBannerDiscountExpr('o');
   return `SELECT o.*, c.name as category_name, c.slug as category_slug, b.name as brand_name 
+    , ${bannerDiscountExpr} AS banner_discount
     FROM optics o 
     LEFT JOIN categories c ON o.category_id = c.id 
     LEFT JOIN brands b ON o.brand_id = b.id 
@@ -91,6 +111,7 @@ router.get('/', async function (req, res, next) {
     const { category, brand, search, gender, stock, discounted } = req.query;
     let where = '';
     const params = [];
+    const bannerDiscountExpr = activeBannerDiscountExpr('o');
 
     if (category) {
       where += (where ? ' AND ' : ' WHERE ') + '(c.slug = ? OR c.id = ?)';
@@ -115,9 +136,9 @@ router.get('/', async function (req, res, next) {
       where += (where ? ' AND ' : ' WHERE ') + 'o.in_stock = 0';
     }
     if (discounted === 'true') {
-      where += (where ? ' AND ' : ' WHERE ') + '(o.discount IS NOT NULL AND o.discount > 0)';
+      where += (where ? ' AND ' : ' WHERE ') + `(GREATEST(COALESCE(o.discount, 0), COALESCE(${bannerDiscountExpr}, 0)) > 0)`;
     } else if (discounted === 'false') {
-      where += (where ? ' AND ' : ' WHERE ') + '(o.discount IS NULL OR o.discount <= 0)';
+      where += (where ? ' AND ' : ' WHERE ') + `(GREATEST(COALESCE(o.discount, 0), COALESCE(${bannerDiscountExpr}, 0)) <= 0)`;
     }
 
     const sql = getOpticsQuery(where, params);

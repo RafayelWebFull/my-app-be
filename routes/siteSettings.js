@@ -29,10 +29,30 @@ router.get('/', async function (req, res) {
   }
 });
 
-router.put('/', requireAdmin, upload.single('hero_image'), async function (req, res) {
+router.put('/', requireAdmin, upload.fields([
+  { name: 'hero_image', maxCount: 1 },
+  { name: 'about_images', maxCount: 20 },
+]), async function (req, res) {
   try {
     const updates = { ...req.body };
-    if (req.file) updates.hero_image = '/uploads/' + req.file.filename;
+    const files = req.files || {};
+    const heroFile = files.hero_image && files.hero_image[0];
+    const aboutFiles = files.about_images || [];
+
+    if (heroFile) updates.hero_image = '/uploads/' + heroFile.filename;
+
+    if (aboutFiles.length) {
+      let existing = [];
+      if (typeof updates.about_images === 'string' && updates.about_images.trim()) {
+        try {
+          const parsed = JSON.parse(updates.about_images);
+          if (Array.isArray(parsed)) existing = parsed.filter(Boolean);
+        } catch (_) {}
+      }
+      const uploaded = aboutFiles.map((f) => '/uploads/' + f.filename);
+      updates.about_images = JSON.stringify(existing.concat(uploaded));
+    }
+
     for (const [key, value] of Object.entries(updates)) {
       await req.db.execute(
         'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
