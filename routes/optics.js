@@ -108,7 +108,7 @@ function getOpticsQuery(where, params) {
 
 router.get('/', async function (req, res, next) {
   try {
-    const { category, brand, search, gender, stock, discounted } = req.query;
+    const { category, brand, search, gender, stock, discounted, banner } = req.query;
     let where = '';
     const params = [];
     const bannerDiscountExpr = activeBannerDiscountExpr('o');
@@ -139,6 +139,23 @@ router.get('/', async function (req, res, next) {
       where += (where ? ' AND ' : ' WHERE ') + `(GREATEST(COALESCE(o.discount, 0), COALESCE(${bannerDiscountExpr}, 0)) > 0)`;
     } else if (discounted === 'false') {
       where += (where ? ' AND ' : ' WHERE ') + `(GREATEST(COALESCE(o.discount, 0), COALESCE(${bannerDiscountExpr}, 0)) <= 0)`;
+    }
+    if (banner) {
+      const bannerId = parseInt(String(banner), 10);
+      if (!Number.isNaN(bannerId) && bannerId > 0) {
+        where += (where ? ' AND ' : ' WHERE ') + `EXISTS (
+          SELECT 1
+          FROM banners bf
+          WHERE bf.id = ?
+            AND CURDATE() BETWEEN bf.start_date AND bf.end_date
+            AND (
+              bf.target_type = 'all'
+              OR (bf.target_type = 'brand' AND bf.target_id = o.brand_id)
+              OR (bf.target_type = 'optic' AND bf.target_id = o.id)
+            )
+        )`;
+        params.push(bannerId);
+      }
     }
 
     const sql = getOpticsQuery(where, params);
