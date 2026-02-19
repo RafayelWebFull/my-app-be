@@ -32,12 +32,14 @@ router.get('/', async function (req, res) {
 router.put('/', requireAdmin, upload.fields([
   { name: 'hero_image', maxCount: 1 },
   { name: 'about_images', maxCount: 20 },
+  { name: 'repair_images', maxCount: 20 },
 ]), async function (req, res) {
   try {
     const updates = { ...req.body };
     const files = req.files || {};
     const heroFile = files.hero_image && files.hero_image[0];
     const aboutFiles = files.about_images || [];
+    const repairFiles = files.repair_images || [];
 
     if (heroFile) updates.hero_image = '/uploads/' + heroFile.filename;
 
@@ -51,6 +53,18 @@ router.put('/', requireAdmin, upload.fields([
       }
       const uploaded = aboutFiles.map((f) => '/uploads/' + f.filename);
       updates.about_images = JSON.stringify(existing.concat(uploaded));
+    }
+
+    if (repairFiles.length) {
+      let existing = [];
+      if (typeof updates.repair_images === 'string' && updates.repair_images.trim()) {
+        try {
+          const parsed = JSON.parse(updates.repair_images);
+          if (Array.isArray(parsed)) existing = parsed.filter(Boolean);
+        } catch (_) {}
+      }
+      const uploaded = repairFiles.map((f) => '/uploads/' + f.filename);
+      updates.repair_images = JSON.stringify(existing.concat(uploaded));
     }
 
     for (const [key, value] of Object.entries(updates)) {

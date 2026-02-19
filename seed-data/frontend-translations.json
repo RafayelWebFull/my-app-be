@@ -74,5 +74,15 @@
   "continueShopping": { "en": "Continue shopping", "ru": "Продолжить покупки", "hy": "Շարունակել գնումները" },
   "home_card_sunglasses": { "en": "Sunglasses", "ru": "Солнцезащитные очки", "hy": "Արևային ակնոցներ" },
   "home_card_optic": { "en": "Optic / Eyeglasses", "ru": "Оптика / Очки", "hy": "Օպտիկա / Ակնոցներ" },
-  "home_card_lenses": { "en": "Contact Lenses", "ru": "Контактные линзы", "hy": "Կոնտակտային լինզաներ" }
+  "home_card_lenses": { "en": "Contact Lenses", "ru": "Контактные линзы", "hy": "Կոնտակտային լինզաներ" },
+  "repairServiceCenter": { "en": "Repair Service Center", "ru": "Сервисный центр ремонта", "hy": "Վերանորոգման սպասարկման կենտրոն" },
+  "repairServiceDescriptionTop": { "en": "Bring your glasses or sunglasses for diagnostics, adjustment, and professional repair by our specialists.", "ru": "Принесите ваши очки или солнцезащитные очки для диагностики, настройки и профессионального ремонта нашими специалистами.", "hy": "Բերեք ձեր ակնոցները կամ արևային ակնոցները ախտորոշման, կարգավորման և մասնագիտական վերանորոգման համար մեր մասնագետների կողմից։" },
+  "repairServiceDescriptionBottom": { "en": "We carefully restore frames, replace worn parts, and help extend the life of your eyewear with reliable service.", "ru": "Мы аккуратно восстанавливаем оправы, заменяем изношенные детали и помогаем продлить срок службы ваших очков надежным сервисом.", "hy": "Մենք խնամքով վերականգնում ենք շրջանակները, փոխարինում մաշված մասերը և օգնում երկարացնել ձեր ակնոցների ծառայության ժամկետը հուսալի սպասարկմամբ։" },
+  "repairIssueDescription": { "en": "Issue Description", "ru": "Описание проблемы", "hy": "Խնդրի նկարագրություն" },
+  "repairSubmitRequest": { "en": "Submit Request", "ru": "Отправить заявку", "hy": "Ուղարկել հայտը" },
+  "repairNamePlaceholder": { "en": "Your full name", "ru": "Ваше полное имя", "hy": "Ձեր ամբողջական անունը" },
+  "repairPhonePlaceholder": { "en": "+374 XX XXX XXX", "ru": "+374 XX XXX XXX", "hy": "+374 XX XXX XXX" },
+  "repairIssuePlaceholder": { "en": "Describe your issue (broken frame, loose screw, lens replacement, etc.)", "ru": "Опишите вашу проблему (сломанная оправа, ослабленный винт, замена линз и т.д.)", "hy": "Նկարագրեք ձեր խնդիրը (կոտրված շրջանակ, թուլացած պտուտակ, լինզաների փոխարինում և այլն)" },
+  "repairFormRequired": { "en": "Please fill all required fields", "ru": "Пожалуйста, заполните все обязательные поля", "hy": "Խնդրում ենք լրացնել բոլոր պարտադիր դաշտերը" },
+  "repairRequestSuccess": { "en": "Your request has been sent. We will contact you soon.", "ru": "Ваша заявка отправлена. Мы свяжемся с вами в ближайшее время.", "hy": "Ձեր հայտն ուղարկվել է։ Շուտով կապ կհաստատենք ձեզ հետ։" }
 }
