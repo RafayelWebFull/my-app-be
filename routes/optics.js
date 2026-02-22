@@ -66,17 +66,53 @@ function normalizeImageUrls(urls) {
   return unique;
 }
 
+function parseDescriptionTranslations(body) {
+  var en = body && typeof body.description_en === 'string' ? body.description_en.trim() : '';
+  var ru = body && typeof body.description_ru === 'string' ? body.description_ru.trim() : '';
+  var hy = body && typeof body.description_hy === 'string' ? body.description_hy.trim() : '';
+  return { en: en, ru: ru, hy: hy };
+}
+
+function pickLegacyDescription(row, descriptions) {
+  if (descriptions.en) return descriptions.en;
+  if (descriptions.ru) return descriptions.ru;
+  if (descriptions.hy) return descriptions.hy;
+  if (row.description != null && String(row.description).trim()) return String(row.description);
+  return null;
+}
+
+function movePrimaryToFront(urls, primaryUrl) {
+  if (!primaryUrl || !Array.isArray(urls) || urls.length < 2) return urls;
+  var idx = urls.indexOf(primaryUrl);
+  if (idx <= 0) return urls;
+  var next = urls.slice();
+  var picked = next.splice(idx, 1)[0];
+  next.unshift(picked);
+  return next;
+}
+
 function toOpticResponse(row) {
   var imageUrls = parseImageUrls(row.image_urls);
   if (!imageUrls.length && row.image_url) {
     imageUrls = [row.image_url];
   }
+  var descriptions = {
+    en: row.description_en || null,
+    ru: row.description_ru || null,
+    hy: row.description_hy || null,
+  };
   var ownDiscount = row.discount != null ? Number(row.discount) || 0 : 0;
   var bannerDiscount = row.banner_discount != null ? Number(row.banner_discount) || 0 : 0;
   var effectiveDiscount = Math.max(ownDiscount, bannerDiscount);
   return Object.assign({}, row, {
     image_urls: imageUrls,
     image_url: imageUrls[0] || null,
+    description: pickLegacyDescription(row, {
+      en: descriptions.en || '',
+      ru: descriptions.ru || '',
+      hy: descriptions.hy || '',
+    }),
+    description_translations: descriptions,
     discount: effectiveDiscount > 0 ? effectiveDiscount : null,
     own_discount: ownDiscount > 0 ? ownDiscount : null,
     banner_discount: bannerDiscount > 0 ? bannerDiscount : null,
@@ -180,13 +216,14 @@ router.get('/:id', async function (req, res, next) {
   }
 });
 
-router.post('/', requireAdmin, upload.fields([{ name: 'images', maxCount: 4 }, { name: 'image', maxCount: 1 }]), async function (req, res, next) {
+router.post('/', requireAdmin, upload.fields([{ name: 'images' }, { name: 'image', maxCount: 1 }]), async function (req, res, next) {
   try {
-    const { name, style, category_id, brand_id, price, description, in_stock, discount, gender } = req.body;
-    if (!name || !style || !category_id || !brand_id) {
-      return res.status(400).json({ error: 'name, style, category_id, brand_id required' });
+    const { name, style, category_id, brand_id, price, description, in_stock, discount, gender, primary_image_url } = req.body;
+    if (!name || !category_id || !brand_id) {
+      return res.status(400).json({ error: 'name, category_id, brand_id required' });
     }
     const genderValue = ['male', 'female', 'unisex'].includes(gender) ? gender : 'unisex';
+    const descriptions = parseDescriptionTranslations(req.body);
     var uploadedImages = [];
     if (req.files && Array.isArray(req.files.images)) {
       uploadedImages = uploadedImages.concat(req.files.images);
@@ -194,16 +231,23 @@ router.post('/', requireAdmin, upload.fields([{ name: 'images', maxCount: 4 }, {
     if (req.files && Array.isArray(req.files.image)) {
       uploadedImages = uploadedImages.concat(req.files.image);
     }
-    var imageUrls = normalizeImageUrls(uploadedImages.map(function (f) { return '/uploads/' + f.filename; }));
-    if (imageUrls.length < 1 || imageUrls.length > 4) {
-      return res.status(400).json({ error: 'Each product must have from 1 to 4 images' });
+    var uploadedUrls = normalizeImageUrls(uploadedImages.map(function (f) { return '/uploads/' + f.filename; }));
+    var primaryUploadIndex = Number.parseInt(req.body.primary_upload_index, 10);
+    var requestedPrimaryUrl = primary_image_url;
+    if (!Number.isNaN(primaryUploadIndex) && primaryUploadIndex >= 0 && primaryUploadIndex < uploadedUrls.length) {
+      requestedPrimaryUrl = uploadedUrls[primaryUploadIndex];
+    }
+    var imageUrls = movePrimaryToFront(uploadedUrls, requestedPrimaryUrl);
+    if (imageUrls.length < 1) {
+      return res.status(400).json({ error: 'Each product must have at least 1 image' });
     }
     const stock = in_stock === 'false' || in_stock === false ? 0 : 1;
     const discountVal = discount != null && discount !== '' ? Math.min(100, Math.max(0, parseInt(discount, 10) || 0)) : null;
+    const legacyDescription = descriptions.en || descriptions.ru || descriptions.hy || description || null;
     const [result] = await req.db.execute(
-      `INSERT INTO optics (name, style, category_id, brand_id, image_url, image_urls, price, description, in_stock, discount, gender) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, style, category_id, brand_id, imageUrls[0], JSON.stringify(imageUrls), price || null, description || null, stock, discountVal, genderValue]
+      `INSERT INTO optics (name, style, category_id, brand_id, image_url, image_urls, price, description, description_en, description_ru, description_hy, in_stock, discount, gender) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, (style || '').trim(), category_id, brand_id, imageUrls[0], JSON.stringify(imageUrls), price || null, legacyDescription, descriptions.en || null, descriptions.ru || null, descriptions.hy || null, stock, discountVal, genderValue]
     );
     const [rows] = await req.db.execute(getOpticsQuery('WHERE o.id = ?', []), [result.insertId]);
     res.status(201).json(toOpticResponse(rows[0]));
@@ -213,13 +257,14 @@ router.post('/', requireAdmin, upload.fields([{ name: 'images', maxCount: 4 }, {
   }
 });
 
-router.put('/:id', requireAdmin, upload.fields([{ name: 'images', maxCount: 4 }, { name: 'image', maxCount: 1 }]), async function (req, res, next) {
+router.put('/:id', requireAdmin, upload.fields([{ name: 'images' }, { name: 'image', maxCount: 1 }]), async function (req, res, next) {
   try {
-    const { name, style, category_id, brand_id, price, description, in_stock, discount, gender } = req.body;
-    if (!name || !style || !category_id || !brand_id) {
-      return res.status(400).json({ error: 'name, style, category_id, brand_id required' });
+    const { name, style, category_id, brand_id, price, description, in_stock, discount, gender, primary_image_url } = req.body;
+    if (!name || !category_id || !brand_id) {
+      return res.status(400).json({ error: 'name, category_id, brand_id required' });
     }
     const genderValue = ['male', 'female', 'unisex'].includes(gender) ? gender : 'unisex';
+    const descriptions = parseDescriptionTranslations(req.body);
     const [existingRows] = await req.db.execute('SELECT image_url, image_urls FROM optics WHERE id = ?', [req.params.id]);
     if (existingRows.length === 0) {
       return res.status(404).json({ error: 'Optic not found' });
@@ -243,15 +288,22 @@ router.put('/:id', requireAdmin, upload.fields([{ name: 'images', maxCount: 4 },
 
     var baseImageUrls = hasImageUrlsField ? fromBody : existing;
     var finalImageUrls = normalizeImageUrls(baseImageUrls.concat(uploadedUrls));
+    var primaryUploadIndex = Number.parseInt(req.body.primary_upload_index, 10);
+    var requestedPrimaryUrl = primary_image_url;
+    if (!Number.isNaN(primaryUploadIndex) && primaryUploadIndex >= 0 && primaryUploadIndex < uploadedUrls.length) {
+      requestedPrimaryUrl = uploadedUrls[primaryUploadIndex];
+    }
+    finalImageUrls = movePrimaryToFront(finalImageUrls, requestedPrimaryUrl);
 
-    if (finalImageUrls.length < 1 || finalImageUrls.length > 4) {
-      return res.status(400).json({ error: 'Each product must have from 1 to 4 images' });
+    if (finalImageUrls.length < 1) {
+      return res.status(400).json({ error: 'Each product must have at least 1 image' });
     }
     const stock = in_stock === 'false' || in_stock === false ? 0 : 1;
     const discountVal = discount != null && discount !== '' ? Math.min(100, Math.max(0, parseInt(discount, 10) || 0)) : null;
+    const legacyDescription = descriptions.en || descriptions.ru || descriptions.hy || description || null;
     const [result] = await req.db.execute(
-      `UPDATE optics SET name = ?, style = ?, category_id = ?, brand_id = ?, image_url = ?, image_urls = ?, price = ?, description = ?, in_stock = ?, discount = ?, gender = ? WHERE id = ?`,
-      [name, style, category_id, brand_id, finalImageUrls[0], JSON.stringify(finalImageUrls), price || null, description || null, stock, discountVal, genderValue, req.params.id]
+      `UPDATE optics SET name = ?, style = ?, category_id = ?, brand_id = ?, image_url = ?, image_urls = ?, price = ?, description = ?, description_en = ?, description_ru = ?, description_hy = ?, in_stock = ?, discount = ?, gender = ? WHERE id = ?`,
+      [name, (style || '').trim(), category_id, brand_id, finalImageUrls[0], JSON.stringify(finalImageUrls), price || null, legacyDescription, descriptions.en || null, descriptions.ru || null, descriptions.hy || null, stock, discountVal, genderValue, req.params.id]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Optic not found' });
