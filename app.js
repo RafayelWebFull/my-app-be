@@ -25,6 +25,7 @@ var bannersRouter = require('./routes/banners');
 var ordersRouter = require('./routes/orders');
 var homeCategoryCardsRouter = require('./routes/homeCategoryCards');
 var exchangeRatesRouter = require('./routes/exchangeRates');
+var instagramRouter = require('./routes/instagram');
 
 var app = express();
 
@@ -167,6 +168,7 @@ app.use('/api/banners', bannersRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/home-category-cards', homeCategoryCardsRouter);
 app.use('/api/exchange-rates', exchangeRatesRouter);
+app.use('/api/instagram', instagramRouter);
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 
