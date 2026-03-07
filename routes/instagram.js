@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 var instagramService = require('../services/instagramService');
+var aiProductSuggestService = require('../services/aiProductSuggestService');
 var requireAdmin = require('../middleware/auth').requireAdmin;
 
 function toNumberOrNull(raw) {
@@ -83,6 +84,52 @@ router.post('/publish', requireAdmin, async function (req, res) {
   } catch (err) {
     console.error('Instagram publish failed:', err);
     res.status(500).json({ error: err.message || 'Failed to publish imported Instagram post' });
+  }
+});
+
+router.post('/suggest-fields', requireAdmin, async function (req, res) {
+  try {
+    var body = req.body || {};
+    var postLink = body.post_link ? String(body.post_link).trim() : '';
+    if (!postLink) {
+      return res.status(400).json({ error: 'post_link is required' });
+    }
+
+    var preview = body.preview && body.preview.post && body.preview.caption_translations
+      ? body.preview
+      : await instagramService.previewImportFromLink(postLink);
+    var captions = preview.caption_translations || { hy: '', ru: '', en: '' };
+
+    const [categories] = await req.db.execute('SELECT id, name FROM categories ORDER BY id');
+    const [brands] = await req.db.execute('SELECT id, name FROM brands ORDER BY name');
+
+    var suggestion = await aiProductSuggestService.suggestProductFields({
+      post: preview.post || null,
+      media_count: Array.isArray(preview.media) ? preview.media.length : 0,
+      description_hy: typeof body.description_hy === 'string' && body.description_hy.trim()
+        ? body.description_hy.trim()
+        : (captions.hy || ''),
+      description_ru: typeof body.description_ru === 'string' && body.description_ru.trim()
+        ? body.description_ru.trim()
+        : (captions.ru || ''),
+      description_en: typeof body.description_en === 'string' && body.description_en.trim()
+        ? body.description_en.trim()
+        : (captions.en || ''),
+      fallback_name: typeof body.name === 'string' ? body.name.trim() : '',
+      categories: categories,
+      brands: brands,
+    });
+
+    res.json({
+      suggestion: suggestion,
+      meta: aiProductSuggestService.getAiMeta(),
+    });
+  } catch (err) {
+    console.error('Instagram AI suggestion failed:', err);
+    res.status(500).json({
+      error: err.message || 'Failed to generate AI field suggestions',
+      hint: 'Configure AI_PROVIDER/AI_API_KEY for external API or run local Ollama',
+    });
   }
 });
 
