@@ -91,6 +91,31 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 var hasConfiguredCrossOrigin = Boolean(process.env.FRONTEND_ORIGIN || process.env.CORS_ORIGINS);
 var sessionMaxAgeMs = Number(process.env.SESSION_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000);
+
+// SameSite=None is only for real cross-site HTTPS (e.g. opticgallery.am → api.opticgallery.am).
+// Local Vite proxy is same-site HTTP — None without Secure makes browsers drop the cookie,
+// so login "works" until reload.
+function resolveCookieSameSite() {
+  var explicit = (process.env.COOKIE_SAMESITE || '').toLowerCase();
+  if (explicit === 'none' || explicit === 'lax' || explicit === 'strict') {
+    return explicit;
+  }
+  if (!hasConfiguredCrossOrigin) return 'lax';
+  var configured = []
+    .concat((process.env.FRONTEND_ORIGIN || '').split(','))
+    .concat((process.env.CORS_ORIGINS || '').split(','))
+    .map(function (s) { return s.trim().toLowerCase(); })
+    .filter(Boolean);
+  var needsCrossSite = configured.some(function (o) {
+    return o.indexOf('https://') === 0
+      && o.indexOf('localhost') === -1
+      && o.indexOf('127.0.0.1') === -1;
+  });
+  return needsCrossSite ? 'none' : 'lax';
+}
+
+var cookieSameSite = resolveCookieSameSite();
+
 app.use(session({
   proxy: true,
   secret: process.env.SESSION_SECRET || 'optice-gallery-secret-change-in-production',
@@ -101,7 +126,7 @@ app.use(session({
     secure: 'auto',
     httpOnly: true,
     maxAge: sessionMaxAgeMs,
-    sameSite: hasConfiguredCrossOrigin ? 'none' : 'lax',
+    sameSite: cookieSameSite,
     domain: process.env.COOKIE_DOMAIN || undefined
   }
 }));

@@ -27,7 +27,13 @@ router.post('/login', async function (req, res) {
       role: user.role,
     };
     req.session.cookie.maxAge = sessionMaxAgeMs;
-    res.json({ user: req.session.user });
+    req.session.save(function (saveErr) {
+      if (saveErr) {
+        console.error('Session save error:', saveErr);
+        return res.status(500).json({ error: 'Login failed' });
+      }
+      res.json({ user: req.session.user });
+    });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });

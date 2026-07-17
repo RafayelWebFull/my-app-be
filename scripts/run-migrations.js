@@ -20,6 +20,17 @@ function checksum(content) {
   return crypto.createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
+/**
+ * MariaDB accepts ADD/DROP COLUMN IF [NOT] EXISTS; MySQL 8 does not.
+ * Normalize for execution only — file checksum stays on the original SQL
+ * so already-applied live migrations are not invalidated.
+ */
+function normalizeStatementForMysql(statement) {
+  return statement
+    .replace(/\bADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b/gi, 'ADD COLUMN')
+    .replace(/\bDROP\s+COLUMN\s+IF\s+EXISTS\b/gi, 'DROP COLUMN');
+}
+
 async function getAppliedMigrations() {
   const [rows] = await db.execute(`SELECT filename, checksum FROM ${MIGRATIONS_TABLE}`);
   const map = new Map();
@@ -80,9 +91,10 @@ async function runMigrations() {
       // Execute each statement separately
       for (const statement of statements) {
         if (statement.trim()) {
+          const sql = normalizeStatementForMysql(statement);
           try {
             // Use text protocol for migrations so DDL and PREPARE statements are supported.
-            await db.query(statement);
+            await db.query(sql);
           } catch (stmtErr) {
             // Allow idempotent bootstrap on existing databases.
             const ignoreErrors = [
@@ -91,9 +103,12 @@ async function runMigrations() {
               'Duplicate column',
               'Duplicate key',
               'Duplicate column name',
+              'Duplicate foreign key',
+              'check that column/key exists',
+              'Cannot drop',
             ];
             if (!ignoreErrors.some((e) => stmtErr.message.includes(e))) {
-              console.error(`Error executing statement: ${statement.substring(0, 120)}...`);
+              console.error(`Error executing statement: ${sql.substring(0, 120)}...`);
               throw stmtErr;
             }
           }
