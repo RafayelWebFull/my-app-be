@@ -13,7 +13,7 @@ var storage = multer.diskStorage({
   destination: function (req, file, cb) { cb(null, uploadDir); },
   filename: function (req, file, cb) {
     var ext = path.extname(file.originalname) || '.jpg';
-    cb(null, 'banner-' + Date.now() + ext);
+    cb(null, 'banner-' + file.fieldname + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
   },
 });
 var upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
@@ -42,7 +42,18 @@ router.get('/all', requireAdmin, async function (req, res) {
   }
 });
 
-router.post('/', requireAdmin, upload.single('image'), async function (req, res) {
+var bannerUploads = upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'desktop_image', maxCount: 1 },
+  { name: 'mobile_image', maxCount: 1 },
+]);
+
+function uploadedUrl(req, field) {
+  var files = req.files && req.files[field];
+  return files && files[0] ? '/uploads/' + files[0].filename : null;
+}
+
+router.post('/', requireAdmin, bannerUploads, async function (req, res) {
   try {
     const { title, description, start_date, end_date, discount_percent, target_type, target_id } = req.body;
     if (!title || !start_date || !end_date) {
@@ -56,11 +67,12 @@ router.post('/', requireAdmin, upload.single('image'), async function (req, res)
         return res.status(400).json({ error: 'target_id required for brand/optic targeting' });
       }
     }
-    const imageUrl = req.file ? '/uploads/' + req.file.filename : null;
+    const imageUrl = uploadedUrl(req, 'desktop_image') || uploadedUrl(req, 'image');
+    const mobileImageUrl = uploadedUrl(req, 'mobile_image');
     const discount = discount_percent != null && discount_percent !== '' ? Math.min(100, Math.max(0, parseInt(discount_percent, 10) || 0)) : 0;
     const [result] = await req.db.execute(
-      'INSERT INTO banners (image_url, title, description, start_date, end_date, discount_percent, target_type, target_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [imageUrl, title, description || null, start_date, end_date, discount, targetType, targetId]
+      'INSERT INTO banners (image_url, mobile_image_url, title, description, start_date, end_date, discount_percent, target_type, target_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [imageUrl, mobileImageUrl, title, description || null, start_date, end_date, discount, targetType, targetId]
     );
     const [rows] = await req.db.execute('SELECT * FROM banners WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
@@ -70,9 +82,9 @@ router.post('/', requireAdmin, upload.single('image'), async function (req, res)
   }
 });
 
-router.put('/:id', requireAdmin, upload.single('image'), async function (req, res) {
+router.put('/:id', requireAdmin, bannerUploads, async function (req, res) {
   try {
-    const { title, description, start_date, end_date, discount_percent, image_url, target_type, target_id } = req.body;
+    const { title, description, start_date, end_date, discount_percent, image_url, mobile_image_url, target_type, target_id } = req.body;
     if (!title || !start_date || !end_date) {
       return res.status(400).json({ error: 'title, start_date, end_date required' });
     }
@@ -85,11 +97,13 @@ router.put('/:id', requireAdmin, upload.single('image'), async function (req, re
       }
     }
     let imageUrl = image_url || null;
-    if (req.file) imageUrl = '/uploads/' + req.file.filename;
+    imageUrl = uploadedUrl(req, 'desktop_image') || uploadedUrl(req, 'image') || imageUrl;
+    let mobileImageUrl = mobile_image_url || null;
+    mobileImageUrl = uploadedUrl(req, 'mobile_image') || mobileImageUrl;
     const discount = discount_percent != null && discount_percent !== '' ? Math.min(100, Math.max(0, parseInt(discount_percent, 10) || 0)) : 0;
     const [result] = await req.db.execute(
-      'UPDATE banners SET image_url = COALESCE(?, image_url), title = ?, description = ?, start_date = ?, end_date = ?, discount_percent = ?, target_type = ?, target_id = ? WHERE id = ?',
-      [imageUrl, title, description || null, start_date, end_date, discount, targetType, targetId, req.params.id]
+      'UPDATE banners SET image_url = COALESCE(?, image_url), mobile_image_url = COALESCE(?, mobile_image_url), title = ?, description = ?, start_date = ?, end_date = ?, discount_percent = ?, target_type = ?, target_id = ? WHERE id = ?',
+      [imageUrl, mobileImageUrl, title, description || null, start_date, end_date, discount, targetType, targetId, req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Banner not found' });
     const [rows] = await req.db.execute('SELECT * FROM banners WHERE id = ?', [req.params.id]);
