@@ -12,7 +12,7 @@ var storage = multer.diskStorage({
   destination: function (req, file, cb) { cb(null, uploadDir); },
   filename: function (req, file, cb) {
     var ext = path.extname(file.originalname) || '.jpg';
-    cb(null, 'hero-' + Date.now() + ext);
+    cb(null, 'site-' + file.fieldname + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
   },
 });
 var upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
@@ -31,6 +31,7 @@ router.get('/', async function (req, res) {
 
 router.put('/', requireAdmin, upload.fields([
   { name: 'hero_image', maxCount: 1 },
+  { name: 'hero_mobile_image', maxCount: 1 },
   { name: 'about_images', maxCount: 20 },
   { name: 'repair_images', maxCount: 20 },
 ]), async function (req, res) {
@@ -38,10 +39,12 @@ router.put('/', requireAdmin, upload.fields([
     const updates = { ...req.body };
     const files = req.files || {};
     const heroFile = files.hero_image && files.hero_image[0];
+    const heroMobileFile = files.hero_mobile_image && files.hero_mobile_image[0];
     const aboutFiles = files.about_images || [];
     const repairFiles = files.repair_images || [];
 
     if (heroFile) updates.hero_image = '/uploads/' + heroFile.filename;
+    if (heroMobileFile) updates.hero_mobile_image = '/uploads/' + heroMobileFile.filename;
 
     if (aboutFiles.length) {
       let existing = [];
