@@ -135,6 +135,7 @@ app.use(session({
 // Serve responsive WebP variants when `?w=` is requested, while preserving the
 // original upload URL as a fallback for old clients and direct links.
 var uploadsPath = path.join(__dirname, 'public', 'uploads');
+app.get('/api/image', optimizedUploads(uploadsPath));
 app.use('/uploads', optimizedUploads(uploadsPath));
 app.use('/uploads', express.static(uploadsPath, {
   maxAge: '1y',

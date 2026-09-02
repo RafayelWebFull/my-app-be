@@ -14,7 +14,8 @@ module.exports = function optimizedUploads(uploadRoot) {
 
     var relativePath;
     try {
-      relativePath = decodeURIComponent(req.path).replace(/^\/+/, '');
+      var requestedPath = req.query.src || req.path;
+      relativePath = decodeURIComponent(requestedPath).replace(/^\/+/, '').replace(/^uploads\//, '');
     } catch (err) {
       return res.status(400).send('Invalid image path');
     }
