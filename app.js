@@ -5,6 +5,7 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var session = require('express-session');
 var cors = require('cors');
+var optimizedUploads = require('./middleware/optimizedUploads');
 
 // Database connection
 require('dotenv').config();
@@ -131,8 +132,14 @@ app.use(session({
   }
 }));
 
-// Serve static uploads (API-only deployment)
-app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+// Serve responsive WebP variants when `?w=` is requested, while preserving the
+// original upload URL as a fallback for old clients and direct links.
+var uploadsPath = path.join(__dirname, 'public', 'uploads');
+app.use('/uploads', optimizedUploads(uploadsPath));
+app.use('/uploads', express.static(uploadsPath, {
+  maxAge: '1y',
+  immutable: true,
+}));
 
 // Make database connection available to routes
 // Make database connection available to routes
