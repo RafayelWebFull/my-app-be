@@ -3,6 +3,7 @@
   "products": { "en": "Products", "ru": "Продукция" },
   "about": { "en": "About", "ru": "О нас" },
   "contact": { "en": "Contact", "ru": "Контакты" },
+  "blog": { "en": "Blog", "ru": "Блог", "hy": "Բլոգ" },
   "welcome": { "en": "Welcome", "ru": "Добро пожаловать" },
   "login": { "en": "Login", "ru": "Войти" },
   "register": { "en": "Register", "ru": "Регистрация" },

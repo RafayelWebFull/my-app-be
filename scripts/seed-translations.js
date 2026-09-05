@@ -15,6 +15,7 @@ const TRANSLATION_MIGRATIONS = [
   '008_insert_content_translations_ru_hy.sql',
   '010_discount_translation.sql',
   '012_banner_translations.sql',
+  '025_blog_navigation_translation.sql',
 ];
 
 async function seedTranslations() {
