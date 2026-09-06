@@ -144,8 +144,9 @@ function getOpticsQuery(where, params) {
 
 router.get('/', async function (req, res, next) {
   try {
-    const { category, brand, search, gender, stock, discounted, banner } = req.query;
-    let where = '';
+    const { category, brand, search, gender, stock, discounted, banner, admin } = req.query;
+    const includeHidden = admin === 'all' && req.session && req.session.user && req.session.user.role === 'admin';
+    let where = includeHidden ? '' : ' WHERE o.is_visible = 1';
     const params = [];
     const bannerDiscountExpr = activeBannerDiscountExpr('o');
 
@@ -205,7 +206,9 @@ router.get('/', async function (req, res, next) {
 
 router.get('/:id', async function (req, res, next) {
   try {
-    const [rows] = await req.db.execute(getOpticsQuery('WHERE o.id = ?', []), [req.params.id]);
+    const isAdmin = Boolean(req.session && req.session.user && req.session.user.role === 'admin');
+    const visibility = isAdmin ? '' : ' AND o.is_visible = 1';
+    const [rows] = await req.db.execute(getOpticsQuery('WHERE o.id = ?' + visibility, []), [req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Optic not found' });
     }
@@ -218,7 +221,7 @@ router.get('/:id', async function (req, res, next) {
 
 router.post('/', requireAdmin, upload.fields([{ name: 'images' }, { name: 'image', maxCount: 1 }]), async function (req, res, next) {
   try {
-    const { name, style, category_id, brand_id, price, description, in_stock, discount, gender, primary_image_url } = req.body;
+    const { name, style, category_id, brand_id, price, description, in_stock, is_visible, discount, gender, primary_image_url } = req.body;
     if (!name || !category_id || !brand_id) {
       return res.status(400).json({ error: 'name, category_id, brand_id required' });
     }
@@ -242,12 +245,13 @@ router.post('/', requireAdmin, upload.fields([{ name: 'images' }, { name: 'image
       return res.status(400).json({ error: 'Each product must have at least 1 image' });
     }
     const stock = in_stock === 'false' || in_stock === false ? 0 : 1;
+    const visible = is_visible === 'false' || is_visible === false || is_visible === '0' ? 0 : 1;
     const discountVal = discount != null && discount !== '' ? Math.min(100, Math.max(0, parseInt(discount, 10) || 0)) : null;
     const legacyDescription = descriptions.en || descriptions.ru || descriptions.hy || description || null;
     const [result] = await req.db.execute(
-      `INSERT INTO optics (name, style, category_id, brand_id, image_url, image_urls, price, description, description_en, description_ru, description_hy, in_stock, discount, gender) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, (style || '').trim(), category_id, brand_id, imageUrls[0], JSON.stringify(imageUrls), price || null, legacyDescription, descriptions.en || null, descriptions.ru || null, descriptions.hy || null, stock, discountVal, genderValue]
+      `INSERT INTO optics (name, style, category_id, brand_id, image_url, image_urls, price, description, description_en, description_ru, description_hy, in_stock, is_visible, discount, gender) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, (style || '').trim(), category_id, brand_id, imageUrls[0], JSON.stringify(imageUrls), price || null, legacyDescription, descriptions.en || null, descriptions.ru || null, descriptions.hy || null, stock, visible, discountVal, genderValue]
     );
     const [rows] = await req.db.execute(getOpticsQuery('WHERE o.id = ?', []), [result.insertId]);
     res.status(201).json(toOpticResponse(rows[0]));
@@ -259,13 +263,13 @@ router.post('/', requireAdmin, upload.fields([{ name: 'images' }, { name: 'image
 
 router.put('/:id', requireAdmin, upload.fields([{ name: 'images' }, { name: 'image', maxCount: 1 }]), async function (req, res, next) {
   try {
-    const { name, style, category_id, brand_id, price, description, in_stock, discount, gender, primary_image_url } = req.body;
+    const { name, style, category_id, brand_id, price, description, in_stock, is_visible, discount, gender, primary_image_url } = req.body;
     if (!name || !category_id || !brand_id) {
       return res.status(400).json({ error: 'name, category_id, brand_id required' });
     }
     const genderValue = ['male', 'female', 'unisex'].includes(gender) ? gender : 'unisex';
     const descriptions = parseDescriptionTranslations(req.body);
-    const [existingRows] = await req.db.execute('SELECT image_url, image_urls FROM optics WHERE id = ?', [req.params.id]);
+    const [existingRows] = await req.db.execute('SELECT image_url, image_urls, is_visible FROM optics WHERE id = ?', [req.params.id]);
     if (existingRows.length === 0) {
       return res.status(404).json({ error: 'Optic not found' });
     }
@@ -299,11 +303,12 @@ router.put('/:id', requireAdmin, upload.fields([{ name: 'images' }, { name: 'ima
       return res.status(400).json({ error: 'Each product must have at least 1 image' });
     }
     const stock = in_stock === 'false' || in_stock === false ? 0 : 1;
+    const visible = is_visible == null ? existingRows[0].is_visible : (is_visible === 'false' || is_visible === false || is_visible === '0' ? 0 : 1);
     const discountVal = discount != null && discount !== '' ? Math.min(100, Math.max(0, parseInt(discount, 10) || 0)) : null;
     const legacyDescription = descriptions.en || descriptions.ru || descriptions.hy || description || null;
     const [result] = await req.db.execute(
-      `UPDATE optics SET name = ?, style = ?, category_id = ?, brand_id = ?, image_url = ?, image_urls = ?, price = ?, description = ?, description_en = ?, description_ru = ?, description_hy = ?, in_stock = ?, discount = ?, gender = ? WHERE id = ?`,
-      [name, (style || '').trim(), category_id, brand_id, finalImageUrls[0], JSON.stringify(finalImageUrls), price || null, legacyDescription, descriptions.en || null, descriptions.ru || null, descriptions.hy || null, stock, discountVal, genderValue, req.params.id]
+      `UPDATE optics SET name = ?, style = ?, category_id = ?, brand_id = ?, image_url = ?, image_urls = ?, price = ?, description = ?, description_en = ?, description_ru = ?, description_hy = ?, in_stock = ?, is_visible = ?, discount = ?, gender = ? WHERE id = ?`,
+      [name, (style || '').trim(), category_id, brand_id, finalImageUrls[0], JSON.stringify(finalImageUrls), price || null, legacyDescription, descriptions.en || null, descriptions.ru || null, descriptions.hy || null, stock, visible, discountVal, genderValue, req.params.id]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Optic not found' });
@@ -313,6 +318,19 @@ router.put('/:id', requireAdmin, upload.fields([{ name: 'images' }, { name: 'ima
   } catch (err) {
     console.error('Error updating optic:', err);
     res.status(500).json(errorPayload(err, 'Failed to update optic'));
+  }
+});
+
+router.patch('/:id/visibility', requireAdmin, async function (req, res) {
+  try {
+    const visible = req.body && (req.body.is_visible === true || req.body.is_visible === 1 || req.body.is_visible === '1') ? 1 : 0;
+    const [result] = await req.db.execute('UPDATE optics SET is_visible = ? WHERE id = ?', [visible, req.params.id]);
+    if (!result.affectedRows) return res.status(404).json({ error: 'Optic not found' });
+    const [rows] = await req.db.execute(getOpticsQuery('WHERE o.id = ?', []), [req.params.id]);
+    res.json(toOpticResponse(rows[0]));
+  } catch (err) {
+    console.error('Error updating optic visibility:', err);
+    res.status(500).json(errorPayload(err, 'Failed to update product visibility'));
   }
 });
 
