@@ -1,22 +1,11 @@
 var express = require('express');
 var router = express.Router();
-var multer = require('multer');
 var path = require('path');
-var fs = require('fs');
+var { createImageUpload } = require('../middleware/imageUpload');
 var { requireAdmin } = require('../middleware/auth');
 var languageService = require('../services/languageService');
 
-var uploadDir = path.join(__dirname, '..', 'public', 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-var storage = multer.diskStorage({
-  destination: function (req, file, cb) { cb(null, uploadDir); },
-  filename: function (req, file, cb) {
-    var ext = path.extname(file.originalname) || '.jpg';
-    cb(null, 'homecard-' + Date.now() + ext);
-  },
-});
-var upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+var upload = createImageUpload({ directory: path.join(__dirname, '..', 'public', 'uploads'), prefix: 'homecard' });
 
 // Public: get cards for home page
 router.get('/', async function (req, res) {

@@ -1,12 +1,21 @@
 var express = require('express');
 var router = express.Router();
 var crypto = require('crypto');
+var rateLimit = require('express-rate-limit');
+
+var orderLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many orders from this address. Please try again later.' },
+});
 
 function generateOrderNumber() {
   return 'OG-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
 }
 
-router.post('/', async function (req, res) {
+router.post('/', orderLimiter, async function (req, res) {
   try {
     const { customer_name, customer_email, customer_phone, delivery_address, notes, items } = req.body;
     if (
@@ -17,6 +26,17 @@ router.post('/', async function (req, res) {
       !Array.isArray(items) || items.length === 0 || items.length > 100
     ) {
       return res.status(400).json({ error: 'name, email, phone, address, and items required' });
+    }
+    const cleanName = customer_name.trim();
+    const cleanEmail = customer_email.trim().toLowerCase();
+    const cleanPhone = customer_phone.trim();
+    const cleanAddress = delivery_address.trim();
+    const cleanNotes = notes == null ? null : String(notes).trim();
+    if (cleanName.length > 120 || cleanEmail.length > 254 || cleanPhone.length > 50 || cleanAddress.length > 500 || (cleanNotes && cleanNotes.length > 2000)) {
+      return res.status(400).json({ error: 'One or more customer fields are too long' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return res.status(400).json({ error: 'Invalid email address' });
     }
     const quantities = new Map();
     for (const item of items) {
@@ -77,7 +97,7 @@ router.post('/', async function (req, res) {
     const orderNumber = generateOrderNumber();
     const [result] = await req.db.execute(
       'INSERT INTO orders (order_number, customer_name, customer_email, customer_phone, delivery_address, notes, items_json, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [orderNumber, customer_name.trim(), customer_email.trim(), customer_phone.trim(), delivery_address.trim(), notes ? String(notes).trim() : null, JSON.stringify(orderItems), total]
+      [orderNumber, cleanName, cleanEmail, cleanPhone, cleanAddress, cleanNotes || null, JSON.stringify(orderItems), total]
     );
     res.status(201).json({ id: result.insertId, order_number: orderNumber });
   } catch (err) {

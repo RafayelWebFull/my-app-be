@@ -5,6 +5,8 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var session = require('express-session');
 var cors = require('cors');
+var helmet = require('helmet');
+var MemoryStore = require('memorystore')(session);
 var optimizedUploads = require('./middleware/optimizedUploads');
 
 // Database connection
@@ -30,6 +32,7 @@ var instagramRouter = require('./routes/instagram');
 var blogRouter = require('./routes/blog');
 
 var app = express();
+app.disable('x-powered-by');
 
 // Trust the first proxy (needed for secure cookies behind cPanel/NGINX)
 app.set('trust proxy', 1);
@@ -38,8 +41,6 @@ app.set('trust proxy', 1);
 var allowedOrigins = [
   'https://opticgallery.am',
   'https://www.opticgallery.am',
-  'http://opticgallery.am',
-  'http://www.opticgallery.am',
 ];
 if (process.env.FRONTEND_ORIGIN) {
   var frontendOrigins = process.env.FRONTEND_ORIGIN.split(',').map(function (s) { return s.trim(); });
@@ -62,8 +63,6 @@ function isAllowedOrigin(origin) {
   if (!origin) return true;
   var normalized = normalizeOrigin(origin);
   if (allowedOriginsNormalized.indexOf(normalized) !== -1) return true;
-  if (/^https?:\/\/([a-z0-9-]+\.)?opticgallery\.am(?::\d+)?$/i.test(normalized)) return true;
-  if (/^https?:\/\/([a-z0-9-]+\.)?vercel\.app(?::\d+)?$/i.test(normalized)) return true;
   return false;
 }
 
@@ -82,16 +81,15 @@ var corsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
-
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
 app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 app.use(cookieParser());
-var hasConfiguredCrossOrigin = Boolean(process.env.FRONTEND_ORIGIN || process.env.CORS_ORIGINS);
 var sessionMaxAgeMs = Number(process.env.SESSION_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000);
 
 // SameSite=None is only for real cross-site HTTPS (e.g. opticgallery.am → api.opticgallery.am).
@@ -102,25 +100,23 @@ function resolveCookieSameSite() {
   if (explicit === 'none' || explicit === 'lax' || explicit === 'strict') {
     return explicit;
   }
-  if (!hasConfiguredCrossOrigin) return 'lax';
-  var configured = []
-    .concat((process.env.FRONTEND_ORIGIN || '').split(','))
-    .concat((process.env.CORS_ORIGINS || '').split(','))
-    .map(function (s) { return s.trim().toLowerCase(); })
-    .filter(Boolean);
-  var needsCrossSite = configured.some(function (o) {
-    return o.indexOf('https://') === 0
-      && o.indexOf('localhost') === -1
-      && o.indexOf('127.0.0.1') === -1;
-  });
-  return needsCrossSite ? 'none' : 'lax';
+  return 'lax';
 }
 
 var cookieSameSite = resolveCookieSameSite();
+var sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret && process.env.NODE_ENV === 'production') {
+  throw new Error('SESSION_SECRET is required in production');
+}
+if (!sessionSecret) {
+  sessionSecret = 'development-only-session-secret';
+  console.warn('SESSION_SECRET is not configured; using a development-only value.');
+}
 
 app.use(session({
   proxy: true,
-  secret: process.env.SESSION_SECRET || 'optice-gallery-secret-change-in-production',
+  secret: sessionSecret,
+  store: new MemoryStore({ checkPeriod: sessionMaxAgeMs }),
   resave: false,
   saveUninitialized: false,
   rolling: true,
@@ -143,7 +139,6 @@ app.use('/uploads', express.static(uploadsPath, {
   immutable: true,
 }));
 
-// Make database connection available to routes
 // Make database connection available to routes
 app.use((req, res, next) => {
   req.db = dbConnection;
@@ -169,22 +164,6 @@ app.use(async (req, res, next) => {
   req.t = async (key, params = {}) => {
     return await languageManager.getTranslation(key, lang, params);
   };
-  
-  // Synchronous version for templates that don't support async
-  req.t.sync = (key, params = {}) => {
-    // This creates a temporary synchronous wrapper - not ideal but works for Jade templates
-    let result;
-    languageManager.getTranslation(key, lang, params).then(translated => {
-      result = translated;
-    }).catch(() => {
-      result = key;
-    });
-    return result || key;
-  };
-  
-  // Make language available in views
-  res.locals.currentLanguage = lang;
-  res.locals.t = req.t.sync;
   
   // Make translations available globally for API
   req.translations = await languageManager.getAllTranslations(lang);
@@ -215,10 +194,11 @@ app.use(function(req, res, next) {
 // error handler
 app.use(function(err, req, res, next) {
   console.error(err); // important: shows in cPanel logs
-
-  res.status(err.status || 500).json({
+  var status = err.status || 500;
+  var exposeDetails = process.env.NODE_ENV !== 'production' || process.env.DEBUG_ERRORS === 'true';
+  res.status(status).json({
     error: true,
-    message: err.message || "Internal Server Error"
+    message: status === 404 ? 'Not Found' : (exposeDetails ? (err.message || 'Internal Server Error') : 'Internal Server Error')
   });
 });
 

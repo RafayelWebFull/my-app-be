@@ -2,18 +2,9 @@ var express = require('express');
 var router = express.Router();
 var languageManager = require('../utils/language');
 
-/* GET home page. */
-router.get('/', async function(req, res, next) {
-  // Note: For Jade templates, we use the sync version of the translation function
-  // which was prepared in the middleware
-  const supportedLanguages = await languageManager.getSupportedLanguages();
-  
-  res.render('index', { 
-    title: req.t.sync('welcome'),
-    currentLanguage: req.language,
-    supportedLanguages: supportedLanguages,
-    t: req.t.sync
-  });
+/* GET API health information. */
+router.get('/', function(req, res) {
+  res.json({ name: 'Optic Gallery API', status: 'ok' });
 });
 
 /* GET language switch */

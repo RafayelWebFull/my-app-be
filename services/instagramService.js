@@ -3,6 +3,7 @@ var path = require('path');
 
 var INSTAGRAM_GRAPH_BASE = 'https://graph.instagram.com';
 var GOOGLE_TRANSLATE_API = 'https://translate.googleapis.com/translate_a/single';
+var MAX_MEDIA_BYTES = 20 * 1024 * 1024;
 
 function getAccessToken() {
   var token = process.env.INSTAGRAM_ACCESS_TOKEN;
@@ -96,7 +97,9 @@ async function buildOrderedMedia(media) {
   }
 
   if (media.media_type !== 'CAROUSEL_ALBUM') {
-    var downloadUrl = media.media_url || media.thumbnail_url || null;
+    var downloadUrl = media.media_type === 'VIDEO'
+      ? (media.thumbnail_url || media.media_url || null)
+      : (media.media_url || media.thumbnail_url || null);
     if (!downloadUrl) throw new Error('Post media does not expose downloadable URL');
     return [
       {
@@ -116,7 +119,9 @@ async function buildOrderedMedia(media) {
   var ordered = [];
   for (var i = 0; i < children.length; i++) {
     var child = children[i];
-    var childDownloadUrl = child.media_url || child.thumbnail_url || null;
+    var childDownloadUrl = child.media_type === 'VIDEO'
+      ? (child.thumbnail_url || child.media_url || null)
+      : (child.media_url || child.thumbnail_url || null);
     if (!childDownloadUrl) continue;
     ordered.push({
       order: i + 1,
@@ -207,11 +212,28 @@ async function downloadMediaInOrder(orderedMedia) {
       var downloadErrorText = await response.text();
       throw new Error('Failed to download media #' + item.order + ': ' + response.status + ' ' + downloadErrorText);
     }
-    var fileExt = getFileExtension(item.download_url, item.media_type);
+    var contentLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > MAX_MEDIA_BYTES) {
+      throw new Error('Instagram media #' + item.order + ' is larger than 20 MB');
+    }
+    var contentType = String(response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+    var extensionByType = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'image/gif': '.gif',
+    };
+    if (!extensionByType[contentType]) {
+      throw new Error('Instagram media #' + item.order + ' is not a supported image');
+    }
+    var fileExt = extensionByType[contentType] || getFileExtension(item.download_url, item.media_type);
     var safeId = String(item.id || Date.now()).replace(/[^a-zA-Z0-9_-]/g, '');
     var filename = 'instagram-' + Date.now() + '-' + String(item.order).padStart(2, '0') + '-' + safeId + fileExt;
     var fullPath = path.join(uploadDir, filename);
     var arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > MAX_MEDIA_BYTES) {
+      throw new Error('Instagram media #' + item.order + ' is larger than 20 MB');
+    }
     await fs.promises.writeFile(fullPath, Buffer.from(arrayBuffer));
     files.push({
       order: item.order,

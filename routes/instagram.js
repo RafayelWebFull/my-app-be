@@ -3,6 +3,7 @@ var router = express.Router();
 var instagramService = require('../services/instagramService');
 var aiProductSuggestService = require('../services/aiProductSuggestService');
 var requireAdmin = require('../middleware/auth').requireAdmin;
+var errorPayload = require('../utils/error').errorPayload;
 
 function toNumberOrNull(raw) {
   if (raw == null || raw === '') return null;
@@ -25,7 +26,7 @@ router.post('/preview', requireAdmin, async function (req, res) {
     res.json(preview);
   } catch (err) {
     console.error('Instagram preview failed:', err);
-    res.status(500).json({ error: err.message || 'Failed to preview Instagram post' });
+    res.status(500).json(errorPayload(err, 'Failed to preview Instagram post'));
   }
 });
 
@@ -83,7 +84,7 @@ router.post('/publish', requireAdmin, async function (req, res) {
     });
   } catch (err) {
     console.error('Instagram publish failed:', err);
-    res.status(500).json({ error: err.message || 'Failed to publish imported Instagram post' });
+    res.status(500).json(errorPayload(err, 'Failed to publish imported Instagram post'));
   }
 });
 
@@ -126,10 +127,9 @@ router.post('/suggest-fields', requireAdmin, async function (req, res) {
     });
   } catch (err) {
     console.error('Instagram AI suggestion failed:', err);
-    res.status(500).json({
-      error: err.message || 'Failed to generate AI field suggestions',
-      hint: 'Configure AI_PROVIDER/AI_API_KEY for external API or run local Ollama',
-    });
+    var payload = errorPayload(err, 'Failed to generate AI field suggestions');
+    payload.hint = 'Configure AI_PROVIDER/AI_API_KEY for external API or run local Ollama';
+    res.status(500).json(payload);
   }
 });
 

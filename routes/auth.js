@@ -1,8 +1,18 @@
 var express = require('express');
 var router = express.Router();
 var bcrypt = require('bcryptjs');
+var rateLimit = require('express-rate-limit');
 
-router.post('/login', async function (req, res) {
+var loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: 'Too many login attempts. Please try again later.' },
+});
+
+router.post('/login', loginLimiter, async function (req, res) {
   try {
     const sessionMaxAgeMs = Number(process.env.SESSION_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000);
     const { username, password } = req.body;
@@ -21,18 +31,24 @@ router.post('/login', async function (req, res) {
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    req.session.user = {
-      id: user.id,
-      username: user.username,
-      role: user.role,
-    };
-    req.session.cookie.maxAge = sessionMaxAgeMs;
-    req.session.save(function (saveErr) {
-      if (saveErr) {
-        console.error('Session save error:', saveErr);
+    req.session.regenerate(function (regenerateErr) {
+      if (regenerateErr) {
+        console.error('Session regeneration error:', regenerateErr);
         return res.status(500).json({ error: 'Login failed' });
       }
-      res.json({ user: req.session.user });
+      req.session.user = {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      };
+      req.session.cookie.maxAge = sessionMaxAgeMs;
+      req.session.save(function (saveErr) {
+        if (saveErr) {
+          console.error('Session save error:', saveErr);
+          return res.status(500).json({ error: 'Login failed' });
+        }
+        res.json({ user: req.session.user });
+      });
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -41,8 +57,16 @@ router.post('/login', async function (req, res) {
 });
 
 router.post('/logout', function (req, res) {
-  req.session.destroy();
-  res.json({ ok: true });
+  req.session.destroy(function (err) {
+    if (err) return res.status(500).json({ error: 'Logout failed' });
+    res.clearCookie('connect.sid', {
+      httpOnly: true,
+      sameSite: process.env.COOKIE_SAMESITE || 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      domain: process.env.COOKIE_DOMAIN || undefined,
+    });
+    res.json({ ok: true });
+  });
 });
 
 router.get('/me', function (req, res) {

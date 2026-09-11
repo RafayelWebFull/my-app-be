@@ -1,29 +1,15 @@
 var express = require('express');
 var router = express.Router();
-var multer = require('multer');
 var path = require('path');
-var fs = require('fs');
+var { createImageUpload } = require('../middleware/imageUpload');
 var sanitizeHtml = require('sanitize-html');
 var { requireAdmin } = require('../middleware/auth');
 var { errorPayload } = require('../utils/error');
 
-var uploadDir = path.join(__dirname, '..', 'public', 'uploads', 'blog');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-var storage = multer.diskStorage({
-  destination: function (req, file, cb) { cb(null, uploadDir); },
-  filename: function (req, file, cb) {
-    var extension = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, 'blog-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9) + extension);
-  },
-});
-var upload = multer({
-  storage: storage,
-  limits: { fileSize: 8 * 1024 * 1024 },
-  fileFilter: function (req, file, cb) {
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.mimetype)) return cb(new Error('Only JPEG, PNG, WebP, and GIF images are allowed'));
-    cb(null, true);
-  },
+var upload = createImageUpload({
+  directory: path.join(__dirname, '..', 'public', 'uploads', 'blog'),
+  prefix: 'blog',
+  fileSize: 8 * 1024 * 1024,
 });
 
 var allowedHtml = {
