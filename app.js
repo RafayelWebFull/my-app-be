@@ -104,6 +104,7 @@ function resolveCookieSameSite() {
 }
 
 var cookieSameSite = resolveCookieSameSite();
+var sessionCleanupPeriodMs = Math.min(sessionMaxAgeMs, 24 * 60 * 60 * 1000);
 var sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret && process.env.NODE_ENV === 'production') {
   throw new Error('SESSION_SECRET is required in production');
@@ -116,7 +117,7 @@ if (!sessionSecret) {
 app.use(session({
   proxy: true,
   secret: sessionSecret,
-  store: new MemoryStore({ checkPeriod: sessionMaxAgeMs }),
+  store: new MemoryStore({ checkPeriod: sessionCleanupPeriodMs }),
   resave: false,
   saveUninitialized: false,
   rolling: true,
